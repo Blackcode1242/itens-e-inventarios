@@ -1,0 +1,19 @@
+{
+  "name": "Inventário do Mestre",
+  "version": "2.1.0",
+  "manifest_version": 1,
+  "description": "Banco de itens do mestre, personalizável para qualquer sistema.",
+  "author": "Blackcode1242 (adaptado do projeto de @mestremxrpg)",
+  "icon": "https://blackcode1242.github.io/itens-e-inventarios/icon.svg",
+  "background_url": "https://blackcode1242.github.io/itens-e-inventarios/background.html",
+  "action": {
+    "title": "Inventário",
+    "icon": "https://blackcode1242.github.io/itens-e-inventarios/icon.svg",
+    "popover": "https://blackcode1242.github.io/itens-e-inventarios/index.html",
+    "width": 440,
+    "height": 600
+  },
+  "permissions": [
+    { "name": "clipboard-write", "reason": "Copiar o nome e a descrição do item" }
+  ]
+}

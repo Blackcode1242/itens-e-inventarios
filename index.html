@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inventário</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+  :root { --bg:#1e2231; --card:#2a3045; --line:#3a4260; --text:#e8e6f0; --muted:#9aa0b8; --gold:#d9925e; --ok:#3f8f5a; --bad:#a64848; --acc:#7a5cd6; }
+  * { box-sizing:border-box; }
+  html, body { height:100%; margin:0; }
+  body { background:var(--bg); color:var(--text); font-family:system-ui,sans-serif; font-size:13px; }
+  #app { display:flex; flex-direction:column; height:100%; }
+  header { display:flex; align-items:center; gap:10px; padding:10px 12px 6px; } header h1 { flex:1; }
+  h1 { margin:0; font-size:15px; letter-spacing:.06em; text-transform:uppercase; }
+  #papel { font-size:11px; color:var(--muted); }
+  #principal { flex:1; min-height:0; overflow:auto; padding:0 12px 8px; }
+  [hidden] { display:none !important; }
+
+  button { border:0; border-radius:6px; padding:6px 10px; font-size:12px; font-weight:600; color:#fff; background:var(--line); cursor:pointer; }
+  button:hover { filter:brightness(1.2); }
+  button.p { background:var(--acc); } button.ok { background:var(--ok); } button.bad { background:var(--bad); } button.on { background:var(--ok); }
+  input, select, textarea { width:100%; font-family:inherit; padding:7px; border-radius:6px; border:1px solid #444b66; background:#14171f; color:var(--text); font-size:13px; }
+  label { display:block; margin:8px 0 3px; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
+
+  .abas { display:flex; gap:6px; margin:4px 0 8px; }
+  .abas button { flex:1; } .abas button.sel { background:var(--acc); }
+  .barra { display:flex; gap:6px; margin-bottom:8px; } .barra input { flex:1; }
+  .vazio { text-align:center; color:var(--muted); padding:22px 8px; }
+
+  .item { background:var(--card); border-radius:10px; padding:8px; margin-bottom:8px; display:grid; grid-template-columns:auto 1fr; gap:8px 10px; }
+  .thumb { width:52px; height:52px; border-radius:8px; background:#14171f; display:flex; align-items:center; justify-content:center; overflow:hidden; cursor:pointer; }
+  .thumb img { max-width:100%; max-height:100%; }
+  .thumb.vz { cursor:default; color:var(--muted); font-size:10px; }
+  .info b { display:block; font-size:14px; } .info small { color:var(--muted); }
+  .acoes { grid-column:1 / -1; display:flex; flex-wrap:wrap; gap:6px; }
+  .desc { grid-column:1 / -1; max-height:110px; overflow:auto; font-size:12.5px; line-height:1.45; color:#cfd2e2; background:#14171f; border-radius:6px; padding:7px 8px; }
+
+  #form { background:var(--card); border-radius:10px; padding:10px; }
+  #form h2 { margin:0 0 4px; font-size:14px; }
+  .linha { display:flex; gap:8px; } .linha > div { flex:1; }
+  #desc-ed { min-height:84px; max-height:160px; overflow:auto; padding:8px; border-radius:6px; border:1px solid #444b66; background:#14171f; line-height:1.45; outline:none; }
+  #desc-ed:empty::before { content:attr(data-ph); color:#6a7090; }
+  .tb { display:flex; gap:6px; margin-bottom:4px; }
+  .imgrow { display:flex; gap:10px; align-items:center; }
+  #prev { width:72px; height:72px; border-radius:8px; background:#14171f; display:flex; align-items:center; justify-content:center; overflow:hidden; color:var(--muted); font-size:10px; text-align:center; }
+  #prev img { max-width:100%; max-height:100%; }
+  .btns { display:flex; flex-wrap:wrap; gap:6px; } .btns.fim { margin-top:12px; justify-content:flex-end; }
+  small.dica { display:block; margin-top:5px; color:var(--muted); font-size:11px; line-height:1.4; }
+
+  #toast { position:fixed; left:50%; bottom:14px; transform:translateX(-50%); background:#000d; color:#fff; padding:8px 14px; border-radius:20px; font-size:12px; opacity:0; pointer-events:none; transition:opacity .25s; z-index:9; max-width:90%; text-align:center; }
+  #toast.v { opacity:1; }
+
+  .pers { background:var(--card); border-radius:10px; padding:8px; margin-bottom:8px; }
+  .pers h3 { margin:0 0 6px; font-size:13px; display:flex; gap:6px; align-items:center; } .pers h3 span { flex:1; }
+  .lin { display:flex; align-items:center; gap:6px; padding:5px 0 5px 6px; margin-top:5px; background:#14171f55; border-radius:6px; } .lin .info { flex:1; } .lin button { padding:3px 8px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header><h1>Inventário</h1><span id="papel"></span><button id="som-btn" class="p" title="Clique uma vez por sessão para o som dos anúncios tocar sozinho">🔊 Ativar som</button></header>
+
+  <div id="principal">
+    <!-- ===== MESTRE ===== -->
+    <div id="gm" hidden>
+      <div class="abas">
+        <button id="aba-banco" class="sel">Banco</button>
+        <button id="aba-lista" title="Itens liberados para todos os jogadores">Mesa</button>
+        <button id="aba-pers">Personagens</button>
+        <button id="aba-cfg" title="Configurar tipos e raridades" style="flex:0 0 42px">⚙</button>
+      </div>
+
+      <div id="v-banco">
+        <div id="v-bancolista">
+          <div class="barra">
+            <input id="busca" placeholder="Buscar item...">
+            <button class="p" id="novo">+ Novo item</button>
+          </div>
+          <select id="alvo" style="margin-bottom:8px"></select>
+          <div id="bancoLista"></div>
+          <div class="btns" style="margin-top:6px">
+            <button id="exp">Exportar backup</button>
+            <button id="imp">Importar backup</button>
+            <input id="impfile" type="file" accept="application/json" hidden>
+          </div>
+          <small class="dica">Os itens ficam salvos neste navegador. Exporte um backup de vez em quando.</small>
+        </div>
+
+        <div id="form" hidden>
+          <h2 id="form-titulo">Novo item</h2>
+          <label>Nome</label>
+          <input id="f-nome" maxlength="80">
+          <label>Descrição</label>
+          <div class="tb"><button id="negrito" type="button"><b>B</b> Negrito</button></div>
+          <div id="desc-ed" contenteditable="true" data-ph="O que o item faz... (selecione um trecho e clique em Negrito)"></div>
+          <div class="linha">
+            <div><label>Tipo</label><select id="f-tipo"></select></div>
+            <div><label>Raridade</label><select id="f-rar"></select></div>
+          </div>
+          <div class="linha">
+            <div><label>Peso</label><input id="f-peso" type="number" min="0" step="0.5" value="1"></div>
+            <div><label>Qtd.</label><input id="f-qtd" type="number" min="1" step="1" value="1"></div>
+            <div><label>Valor</label><input id="f-valor" maxlength="30" placeholder="ex.: 50 PO"></div>
+          </div>
+          <label>Propriedades (uma por linha — Nome: valor)</label>
+          <textarea id="f-props" rows="3" placeholder="Dano: 1d8&#10;Alcance: 9 m"></textarea>
+          <div class="linha">
+            <div><label>Tags (separe por vírgula)</label><input id="f-tags" placeholder="mágico, duas mãos"></div>
+            <div style="flex:0 0 84px"><label>Ícone</label><input id="f-ico" maxlength="4" placeholder="🗡️"></div>
+          </div>
+          <div class="linha">
+            <div><label>Contador (ex.: Munição, Cargas)</label><input id="f-rot" maxlength="20"></div>
+            <div style="flex:0 0 80px"><label>Máx.</label><input id="f-max" type="number" min="0" value="0"></div>
+          </div>
+          <label style="display:flex;gap:8px;align-items:center;text-transform:none"><input id="f-sec" type="checkbox" style="width:auto"> Item secreto: os jogadores só veem “não identificado” até você revelar</label>
+          <label>Notas do mestre (só você vê)</label>
+          <textarea id="f-notas" rows="2"></textarea>
+          <label>Imagem</label>
+          <div class="imgrow">
+            <div id="prev">sem imagem</div>
+            <div class="btns">
+              <button id="img-lib" type="button">Biblioteca Owlbear</button>
+              <button id="img-up" type="button">Enviar imagem nova</button>
+              <input id="img-file" type="file" accept="image/*" hidden>
+              <button id="img-rm" type="button">Remover</button>
+            </div>
+          </div>
+          <input id="f-url" placeholder="ou cole o link (https://...) de uma imagem" style="margin-top:8px">
+          <small class="dica">“Enviar imagem nova” manda o arquivo para a sua biblioteca do Owlbear. Depois clique em “Biblioteca Owlbear” e escolha a imagem enviada.</small>
+          <div class="btns fim">
+            <button id="f-cancel" type="button">Cancelar</button>
+            <button id="f-save" type="button" class="ok">Salvar item</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="v-lista" hidden><div id="gmLista"></div></div>
+      <div id="v-pers" hidden>
+        <div class="barra"><input id="p-nome" placeholder="Nome do personagem" maxlength="40"><button class="p" id="p-add">+ Personagem</button></div>
+        <div id="persLista"></div>
+      </div>
+      <div id="v-cfg" hidden>
+        <div id="form">
+          <h2>Configuração</h2>
+          <label>Modelo pronto</label><select id="c-preset"></select>
+          <label>Tipos de item (um por linha)</label><textarea id="c-tipos" rows="5"></textarea>
+          <label>Raridades / categorias (uma por linha: Nome #cor)</label><textarea id="c-rar" rows="5"></textarea>
+          <label>Duração do anúncio (segundos)</label><input id="c-dur" type="number" min="3" max="60">
+          <div class="btns fim"><button id="c-save" type="button" class="ok">Salvar configuração</button></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== JOGADORES ===== -->
+    <div id="jog" hidden><div id="jogPers"></div><div id="jogLista"></div></div>
+  </div>
+
+</div>
+<div id="toast"></div>
+
+<script type="module">
+import OBR, { buildImageUpload, buildImage } from "https://esm.sh/@owlbear-rodeo/sdk@3";
+import { BASE, K_LISTA, CH_ANUNCIO, MODAL_ANUNCIO, K_PERS, CH_USO, PRESETS, CFG_PADRAO, corDe, parseProps, metaTexto, detalhesHTML, novoId, sanitize, copiarRico, copiarTexto } from "./shared.js";
+
+const LS = "inventario:banco:v1", LSC = "inventario:cfg:v1";
+const $ = s => document.querySelector(s);
+
+/* ---------- utilidades ---------- */
+function h(tag, props = {}, ...filhos) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === "class") e.className = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v);
+  }
+  for (const f of filhos.flat()) if (f != null) e.append(f);
+  return e;
+}
+let toastT;
+function toast(msg) {
+  const t = $("#toast"); t.textContent = msg; t.classList.add("v");
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("v"), 2600);
+}
+const fmt = n => String(n).replace(".", ",");
+function btn(txt, cls, fn) { return h("button", { class: cls || "", onclick: fn }, txt); }
+function btnConfirma(txt, fn) {
+  const b = h("button", { class: "bad" }, txt); let t;
+  b.onclick = () => {
+    if (b.dataset.c) { clearTimeout(t); fn(); return; }
+    b.dataset.c = 1; b.textContent = "Confirmar?";
+    t = setTimeout(() => { delete b.dataset.c; b.textContent = txt; }, 3000);
+  };
+  return b;
+}
+function thumb(img, aoClicar, ico) {
+  if (img && /^https?:\/\//.test(img)) {
+    const d = h("div", { class: "thumb", title: "Ver o item" }, h("img", { src: img, alt: "" }));
+    if (aoClicar) d.onclick = aoClicar; return d;
+  }
+  return h("div", { class: "thumb vz" }, ico ? h("span", { style: "font-size:28px" }, ico) : "sem img");
+}
+const urlAnuncio = d => BASE + "anuncio.html?som=0&d=" + encodeURIComponent(JSON.stringify(d));
+
+/* ---------- estado ---------- */
+const migrar = i => { if (i.categoria !== undefined && !i.raridade) i.raridade = "Cat. " + (["0", "I", "II", "III", "IV"][i.categoria] ?? "0"); return i; };
+let banco = []; try { banco = JSON.parse(localStorage.getItem(LS) || "[]").map(migrar); } catch (e) {}
+let cfg = { ...CFG_PADRAO }; try { cfg = { ...CFG_PADRAO, ...JSON.parse(localStorage.getItem(LSC) || "{}") }; } catch (e) {}
+const salvarBanco = () => { try { localStorage.setItem(LS, JSON.stringify(banco)); } catch (e) { toast("Não consegui salvar neste navegador."); } };
+let lista = [], pers = [], party = [], meuId = "";
+let isGM = false, editandoId = null, imgAtual = "";
+
+/* ---------- lista compartilhada (dados da sala, máx. 16 kB) ---------- */
+async function salvarMeta(chave, valor) {
+  const meta = await OBR.room.getMetadata();
+  const outros = { ...meta }; delete outros[chave];
+  const tam = new Blob([JSON.stringify(outros)]).size + new Blob([JSON.stringify(valor)]).size;
+  if (tam > 15000) { toast("O espaço da sala encheu. Retire algum item antes de adicionar outro."); return false; }
+  await OBR.room.setMetadata({ [chave]: valor }); return true;
+}
+const salvarLista = nova => salvarMeta(K_LISTA, nova);
+const salvarPers = nova => salvarMeta(K_PERS, nova);
+const dadosItem = it => ({ id: it.id, nome: it.nome, descricao: it.descricao, img: it.img || "", icone: it.icone || "", tipo: it.tipo,
+  raridade: it.raridade || "", cor: it.cor || corDe(cfg, it.raridade), peso: it.peso, qtd: it.qtd || 1, valor: it.valor || "", props: it.props || [], tags: it.tags || [], rot: it.rot || "", max: it.max || 0, at: it.at ?? it.max ?? 0 });
+// item secreto: só um marcador vai para a sala; os dados reais ficam no banco do mestre até "Revelar"
+const marcar = it => it.secreto ? { id: it.id, oculto: true, nome: "Item não identificado", icone: "❓", cor: "#6a7090", qtd: it.qtd || 1, descricao: "" } : dadosItem(it);
+const paraLista = marcar;
+async function revelar(ent, onde) {
+  const b = banco.find(x => x.id === ent.id);
+  if (!b) { toast("Esse item não está mais no seu banco."); return; }
+  if (onde === "lista") await salvarLista(lista.map(l => l.id === ent.id ? dadosItem(b) : l));
+  else await salvarPers(pers.map(p => p.id !== onde ? p : { ...p, itens: p.itens.map(i => i.uid !== ent.uid ? i : { ...dadosItem(b), uid: ent.uid, at: ent.at ?? b.max ?? 0, qtd: ent.qtd }) }));
+  anunciar(b);
+}
+async function entregar(it) {
+  const pid = $("#alvo").value;
+  if (!pid) { toast("Escolha um personagem em “Entregar para…” (crie na aba Personagens)."); return; }
+  const novo = { ...marcar(it), uid: novoId(), at: it.max || 0 };
+  if (await salvarPers(pers.map(p => p.id === pid ? { ...p, itens: [...p.itens, novo] } : p))) toast("Item entregue.");
+}
+const mudarCarga = (pid, uid, d) => salvarPers(pers.map(p => p.id !== pid ? p : { ...p, itens: p.itens.map(i => i.uid !== uid ? i : { ...i, at: Math.min(i.max, Math.max(0, (i.at ?? i.max) + d)) }) }));
+const usar = (pid, uid, d) => OBR.broadcast.sendMessage(CH_USO, { pid, uid, d }, { destination: "REMOTE" }).catch(() => toast("Não consegui atualizar."));
+async function novoPers() {
+  const nome = $("#p-nome").value.trim();
+  if (!nome) { toast("Dê um nome ao personagem."); return; }
+  if (await salvarPers([...pers, { id: novoId(), nome, jog: "", itens: [] }])) $("#p-nome").value = "";
+}
+async function virarToken(it) {
+  if (!/^https?:\/\//.test(it.img || "")) { toast("Para virar token, o item precisa de uma imagem."); return; }
+  try {
+    const im = await new Promise((ok, no) => { const x = new Image(); x.onload = () => ok(x); x.onerror = no; x.src = it.img; });
+    const w = im.naturalWidth || 150, hh = im.naturalHeight || 150;
+    const mime = /\.jpe?g(\?|$)/i.test(it.img) ? "image/jpeg" : /\.webp(\?|$)/i.test(it.img) ? "image/webp" : "image/png";
+    const pos = await OBR.viewport.inverseTransformPoint({ x: (await OBR.viewport.getWidth()) / 2, y: (await OBR.viewport.getHeight()) / 2 });
+    const token = buildImage({ url: it.img, mime, width: w, height: hh }, { dpi: Math.max(w, hh), offset: { x: w / 2, y: hh / 2 } })
+      .name(it.nome).position(pos).layer("PROP").build();
+    await OBR.scene.items.addItems([token]); toast("Token criado no centro da tela.");
+  } catch (e) { console.error(e); toast("Não consegui criar o token. Abra uma cena e tente de novo."); }
+}
+function linhaItem(p, i, gm) {
+  const ctl = [];
+  if (i.max) ctl.push(btn("−", "", () => gm ? mudarCarga(p.id, i.uid, -1) : usar(p.id, i.uid, -1)), btn("+", "", () => gm ? mudarCarga(p.id, i.uid, 1) : usar(p.id, i.uid, 1)));
+  if (gm && i.oculto) ctl.push(btn("Revelar", "p", () => revelar(i, p.id)));
+  if (gm) ctl.push(btnConfirma("Tirar", () => salvarPers(pers.map(x => x.id !== p.id ? x : { ...x, itens: x.itens.filter(k => k.uid !== i.uid) }))));
+  return h("div", { class: "lin", style: "border-left:4px solid " + (i.cor || "#6a7090") },
+    thumb(i.img, () => verLocal(i), i.icone),
+    h("div", { class: "info" }, h("b", {}, i.nome), h("small", {}, metaTexto(i))), ctl);
+}
+function renderPers() {
+  const alvo = $("#alvo"), atual = alvo.value; alvo.innerHTML = "";
+  alvo.append(h("option", { value: "" }, "Entregar para…"));
+  for (const p of pers) alvo.append(h("option", { value: p.id }, p.nome));
+  alvo.value = atual;
+  const box = $("#persLista"); box.innerHTML = "";
+  if (!pers.length) box.append(h("div", { class: "vazio" }, "Nenhum personagem ainda."));
+  for (const p of pers) {
+    const sel = h("select", { onchange: e => salvarPers(pers.map(x => x.id === p.id ? { ...x, jog: e.target.value } : x)) },
+      h("option", { value: "" }, "(sem jogador)"), party.map(j => h("option", { value: j.id }, j.name)));
+    sel.value = p.jog;
+    box.append(h("div", { class: "pers" },
+      h("h3", {}, h("span", {}, p.nome), btnConfirma("Excluir", () => salvarPers(pers.filter(x => x.id !== p.id)))),
+      sel, p.itens.map(i => linhaItem(p, i, true))));
+  }
+}
+function renderJogPers() {
+  const box = $("#jogPers"); box.innerHTML = "";
+  for (const p of pers.filter(x => x.jog && x.jog === meuId))
+    box.append(h("div", { class: "pers" }, h("h3", {}, h("span", {}, "🎒 " + p.nome)),
+      p.itens.length ? p.itens.map(i => linhaItem(p, i, false)) : h("div", { class: "vazio" }, "Mochila vazia.")));
+}
+
+async function alternarLista(it) {
+  const jaTem = lista.some(l => l.id === it.id);
+  const nova = jaTem ? lista.filter(l => l.id !== it.id) : [...lista, paraLista(it)];
+  if (await salvarLista(nova)) toast(jaTem ? "Retirado da lista dos jogadores." : "Item liberado na lista dos jogadores.");
+}
+async function retirarDaLista(id) { await salvarLista(lista.filter(l => l.id !== id)); }
+
+/* ---------- anúncio ---------- */
+async function anunciar(it) {
+  const dados = { ...dadosItem(it), dur: cfg.duracao };
+  if (new Blob([JSON.stringify(dados)]).size > 15000) { toast("Descrição grande demais para anunciar."); return; }
+  try { await OBR.broadcast.sendMessage(CH_ANUNCIO, dados, { destination: "ALL" }); toast("Item anunciado!"); }
+  catch (e) { toast("Não consegui anunciar."); console.error(e); }
+}
+function verLocal(it) {
+  OBR.modal.open({ id: MODAL_ANUNCIO, url: urlAnuncio({ ...dadosItem(it), dur: cfg.duracao }), fullScreen: true, hidePaper: true });
+}
+
+/* ---------- render: banco do mestre ---------- */
+function renderBanco() {
+  const q = $("#busca").value.trim().toLowerCase();
+  const box = $("#bancoLista"); box.innerHTML = "";
+  const itens = banco.filter(i => !q || (i.nome + " " + i.tipo + " " + (i.raridade || "") + " " + (i.tags || []).join(" ")).toLowerCase().includes(q));
+  if (!itens.length) { box.append(h("div", { class: "vazio" }, banco.length ? "Nenhum item encontrado." : "Nenhum item ainda. Clique em “+ Novo item”.")); return; }
+  for (const it of itens) {
+    const naLista = lista.some(l => l.id === it.id);
+    box.append(h("div", { class: "item", style: "border-left:4px solid " + (it.cor || corDe(cfg, it.raridade)) },
+      thumb(it.img, () => verLocal(it), it.icone),
+      h("div", { class: "info" }, h("b", {}, it.nome), h("small", {}, metaTexto(it) + (it.secreto ? " · 🔒 secreto" : "") + (it.notas ? " · 📝 " + it.notas : ""))),
+      h("div", { class: "acoes" },
+        btn("Anunciar", "p", () => anunciar(it)),
+        btn("Entregar", "", () => entregar(it)),
+        btn("Token", "", () => virarToken(it)),
+        btn(naLista ? "Na lista ✓" : "Mostrar na lista", naLista ? "on" : "", () => alternarLista(it)),
+        btn("Editar", "", () => abrirForm(it)),
+        btnConfirma("Excluir", () => excluir(it)))));
+  }
+}
+async function excluir(it) {
+  banco = banco.filter(b => b.id !== it.id); salvarBanco();
+  if (lista.some(l => l.id === it.id)) await retirarDaLista(it.id);
+  renderBanco(); toast("Item excluído.");
+}
+
+/* ---------- render: cartões (jogadores e aba do mestre) ---------- */
+function renderCards(box, gm) {
+  box.innerHTML = "";
+  if (!lista.length) { box.append(h("div", { class: "vazio" }, "Nenhum item liberado ainda.")); return; }
+  for (const it of lista) {
+    const desc = h("div", { class: "desc" }); desc.innerHTML = sanitize(it.descricao) + detalhesHTML(it);
+    const copiar = async (fn, ok) => toast((await fn()) ? ok : "Não consegui copiar.");
+    box.append(h("div", { class: "item", style: "border-left:4px solid " + (it.cor || corDe(cfg, it.raridade)) },
+      thumb(it.img, () => verLocal(it), it.icone),
+      h("div", { class: "info" }, h("b", {}, it.nome), h("small", {}, metaTexto(it))),
+      desc,
+      h("div", { class: "acoes" },
+        btn("Copiar nome", "p", () => copiar(() => copiarTexto(it.nome), "Nome copiado!")),
+        btn("Copiar descrição", "p", () => copiar(() => copiarRico(it.descricao), "Descrição copiada (com negrito)!")),
+        btn("Ver", "", () => verLocal(it)),
+        gm && it.oculto ? btn("Revelar", "p", () => revelar(it, "lista")) : null,
+        gm ? btnConfirma("Retirar", () => retirarDaLista(it.id)) : null)));
+  }
+}
+function renderTudo() {
+  if (isGM) { renderPers(); renderBanco(); renderCards($("#gmLista"), true); $("#aba-lista").textContent = `Mesa (${lista.length})`; }
+  else { renderJogPers(); renderCards($("#jogLista"), false); }
+}
+
+/* ---------- formulário do mestre ---------- */
+function mostrarImg(url) {
+  imgAtual = url || "";
+  const p = $("#prev"); p.innerHTML = "";
+  if (imgAtual) p.append(h("img", { src: imgAtual, alt: "" })); else p.textContent = "sem imagem";
+  $("#f-url").value = imgAtual.startsWith("http") ? imgAtual : "";
+}
+function abrirForm(it) {
+  editandoId = it ? it.id : null;
+  $("#form-titulo").textContent = it ? "Editar item" : "Novo item";
+  $("#f-nome").value = it ? it.nome : "";
+  $("#desc-ed").innerHTML = it ? sanitize(it.descricao) : "";
+  preencherSelects(it);
+  $("#f-peso").value = it ? it.peso : 1;
+  $("#f-qtd").value = it ? (it.qtd || 1) : 1;
+  $("#f-valor").value = it ? (it.valor || "") : "";
+  $("#f-props").value = it ? (it.props || []).map(p => p[1] ? p[0] + ": " + p[1] : p[0]).join("\n") : "";
+  $("#f-tags").value = it ? (it.tags || []).join(", ") : "";
+  $("#f-ico").value = it ? (it.icone || "") : "";
+  $("#f-notas").value = it ? (it.notas || "") : "";
+  $("#f-rot").value = it ? (it.rot || "") : ""; $("#f-max").value = it ? (it.max || 0) : 0; $("#f-sec").checked = !!(it && it.secreto);
+  mostrarImg(it ? it.img : "");
+  $("#v-bancolista").hidden = true; $("#form").hidden = false;
+  $("#principal").scrollTop = 0;
+}
+function fecharForm() { $("#form").hidden = true; $("#v-bancolista").hidden = false; }
+
+async function salvarItem() {
+  const nome = $("#f-nome").value.trim();
+  if (!nome) { toast("Dê um nome ao item."); return; }
+  const item = {
+    id: editandoId || novoId(), nome,
+    descricao: sanitize($("#desc-ed").innerHTML),
+    peso: Math.max(0, parseFloat($("#f-peso").value) || 0),
+    qtd: Math.max(1, parseInt($("#f-qtd").value, 10) || 1), valor: $("#f-valor").value.trim(),
+    tipo: $("#f-tipo").value, raridade: $("#f-rar").value,
+    props: parseProps($("#f-props").value),
+    tags: $("#f-tags").value.split(",").map(t => t.trim()).filter(Boolean),
+    icone: $("#f-ico").value.trim(), notas: $("#f-notas").value.trim(),
+    rot: $("#f-rot").value.trim(), max: Math.max(0, parseInt($("#f-max").value, 10) || 0), secreto: $("#f-sec").checked,
+    img: imgAtual
+  };
+  const i = banco.findIndex(b => b.id === item.id);
+  if (i >= 0) banco[i] = item; else banco.push(item);
+  salvarBanco();
+  if (lista.some(l => l.id === item.id)) await salvarLista(lista.map(l => l.id === item.id && !l.oculto ? dadosItem(item) : l));
+  fecharForm(); renderBanco(); toast("Item salvo.");
+}
+
+async function escolherDaBiblioteca() {
+  try {
+    const res = await OBR.assets.downloadImages(false);
+    const primeiro = Array.isArray(res) ? res[0] : res;
+    const url = primeiro?.image?.url || primeiro?.url;
+    if (url) { mostrarImg(url); toast("Imagem escolhida."); }
+  } catch (e) { console.error(e); toast("Não consegui abrir a biblioteca. Use o campo de link."); }
+}
+async function enviarImagem(file) {
+  if (!file) return;
+  try {
+    const dados = await file.arrayBuffer();
+    const copia = new File([dados], file.name, { type: file.type });
+    await OBR.assets.uploadImages([buildImageUpload(copia).build()]);
+    toast("Imagem enviada! Agora clique em “Biblioteca Owlbear” e escolha ela.");
+  } catch (e) { console.error(e); toast("Não consegui enviar a imagem."); }
+}
+
+function exportar() {
+  const blob = new Blob([JSON.stringify({ versao: 2, cfg, itens: banco }, null, 2)], { type: "application/json" });
+  const a = h("a", { href: URL.createObjectURL(blob), download: "inventario-backup.json" });
+  document.body.append(a); a.click(); a.remove();
+}
+async function importar(file) {
+  if (!file) return;
+  try {
+    let dados = JSON.parse(await file.text());
+    if (dados && !Array.isArray(dados) && dados.cfg) { cfg = { ...CFG_PADRAO, ...dados.cfg }; try { localStorage.setItem(LSC, JSON.stringify(cfg)); } catch (e) {} carregarCfgNaTela(); }
+    if (dados && !Array.isArray(dados)) dados = dados.itens;
+    if (!Array.isArray(dados)) throw 0;
+    const ids = new Set(banco.map(b => b.id));
+    for (const d of dados) if (d && d.nome && !ids.has(d.id)) banco.push(migrar({ ...d, id: d.id || novoId() }));
+    salvarBanco(); renderBanco(); toast("Backup importado.");
+  } catch (e) { toast("Arquivo de backup inválido."); }
+}
+
+/* ---------- configuração (tipos, raridades, duração) ---------- */
+function preencherSelects(it) {
+  const preencher = (sel, opcoes, atual) => {
+    const o = [...opcoes]; if (atual && !o.includes(atual)) o.push(atual);
+    sel.innerHTML = ""; for (const v of o) sel.append(h("option", { value: v }, v)); sel.value = atual || o[0];
+  };
+  preencher($("#f-tipo"), cfg.tipos, it?.tipo);
+  preencher($("#f-rar"), cfg.raridades.map(r => r[0]), it?.raridade);
+}
+function carregarCfgNaTela() {
+  $("#c-tipos").value = cfg.tipos.join("\n");
+  $("#c-rar").value = cfg.raridades.map(r => r[0] + " " + r[1]).join("\n");
+  $("#c-dur").value = cfg.duracao;
+}
+function iniciarCfg() {
+  $("#c-preset").append(h("option", { value: "" }, "— escolher —"));
+  for (const p of Object.keys(PRESETS)) $("#c-preset").append(h("option", { value: p }, p));
+  $("#c-preset").onchange = e => {
+    const p = PRESETS[e.target.value]; if (!p) return;
+    $("#c-tipos").value = p.tipos.join("\n"); $("#c-rar").value = p.raridades.map(r => r.join(" ")).join("\n");
+    toast("Modelo aplicado. Clique em Salvar configuração.");
+  };
+  $("#c-save").onclick = () => {
+    const tipos = $("#c-tipos").value.split("\n").map(t => t.trim()).filter(Boolean);
+    const raridades = $("#c-rar").value.split("\n").map(l => l.trim()).filter(Boolean).map(l => { const m = l.match(/^(.*?)\s*(#[0-9a-fA-F]{6})?$/); return [m[1] || l, m[2] || "#9aa0b8"]; });
+    if (!tipos.length || !raridades.length) { toast("Preencha ao menos um tipo e uma raridade."); return; }
+    cfg = { tipos, raridades, duracao: Math.min(60, Math.max(3, parseInt($("#c-dur").value, 10) || 8)) };
+    try { localStorage.setItem(LSC, JSON.stringify(cfg)); } catch (e) {}
+    if (lista.length) salvarLista(lista.map(l => { const b = banco.find(x => x.id === l.id); return b && !l.oculto ? dadosItem(b) : l; }));
+    renderTudo(); toast("Configuração salva.");
+  };
+  carregarCfgNaTela();
+}
+
+/* ---------- início ---------- */
+function aplicarPapel(gm) {
+  isGM = gm;
+  $("#gm").hidden = !gm; $("#jog").hidden = gm;
+  $("#papel").textContent = gm ? "Mestre" : "Jogador";
+  renderTudo();
+}
+function aba(qual) {
+  $("#aba-banco").classList.toggle("sel", qual === "banco");
+  $("#aba-lista").classList.toggle("sel", qual === "lista");
+  $("#v-banco").hidden = qual !== "banco"; $("#v-lista").hidden = qual !== "lista";
+  $("#aba-cfg").classList.toggle("sel", qual === "cfg"); $("#v-cfg").hidden = qual !== "cfg";
+  $("#aba-pers").classList.toggle("sel", qual === "pers"); $("#v-pers").hidden = qual !== "pers";
+}
+
+iniciarCfg();
+$("#aba-banco").onclick = () => aba("banco");
+$("#aba-lista").onclick = () => aba("lista");
+$("#aba-cfg").onclick = () => aba("cfg");
+$("#aba-pers").onclick = () => aba("pers");
+$("#p-add").onclick = novoPers;
+$("#novo").onclick = () => abrirForm(null);
+$("#busca").oninput = renderBanco;
+$("#f-cancel").onclick = fecharForm;
+$("#f-save").onclick = salvarItem;
+$("#negrito").onmousedown = e => { e.preventDefault(); document.execCommand("bold"); };
+$("#img-lib").onclick = escolherDaBiblioteca;
+$("#img-up").onclick = () => $("#img-file").click();
+$("#img-file").onchange = e => { enviarImagem(e.target.files[0]); e.target.value = ""; };
+$("#img-rm").onclick = () => mostrarImg("");
+$("#f-url").onchange = e => { const v = e.target.value.trim(); if (/^https:\/\//.test(v)) mostrarImg(v); else if (!v) mostrarImg(""); else toast("O link precisa começar com https://"); };
+$("#exp").onclick = exportar;
+$("#imp").onclick = () => $("#impfile").click();
+$("#impfile").onchange = e => { importar(e.target.files[0]); e.target.value = ""; };
+$("#som-btn").onclick = async () => {
+  const a = new Audio("anuncio.mp3"); a.volume = 0.5;
+  try {
+    await a.play();
+    $("#som-btn").textContent = "🔊 Som ativado ✓"; $("#som-btn").className = "on";
+    toast("Som ativado. Os anúncios vão tocar sozinhos.");
+  } catch (e) { toast("O navegador bloqueou o som."); }
+};
+
+OBR.onReady(async () => {
+  const meta = await OBR.room.getMetadata();
+  lista = meta[K_LISTA] || []; pers = meta[K_PERS] || [];
+  meuId = await OBR.player.getId(); party = await OBR.party.getPlayers();
+  aplicarPapel((await OBR.player.getRole()) === "GM");
+  OBR.player.onChange(p => { if ((p.role === "GM") !== isGM) aplicarPapel(p.role === "GM"); });
+  OBR.room.onMetadataChange(m => { lista = m[K_LISTA] || []; pers = m[K_PERS] || []; renderTudo(); });
+  OBR.party.onChange(p => { party = p; renderTudo(); });
+});
+</script>
+</body>
+</html>
