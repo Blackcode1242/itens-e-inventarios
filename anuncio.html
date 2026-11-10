@@ -8,19 +8,24 @@
 <style>
   html, body { margin:0; height:100%; background:transparent; font-family:Georgia,'Times New Roman',serif; color:#eee; overflow:hidden; }
   #ov { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px;
-        padding:24px 10vw 34px; background:radial-gradient(ellipse at center, rgba(22,24,36,.93), rgba(4,5,9,.97)); animation:entra .45s ease; }
+        padding:24px 10vw 34px; background:radial-gradient(ellipse at center, color-mix(in srgb, var(--t-bg,#161824) var(--ov-a,94%), transparent), color-mix(in srgb, var(--t-bg2,#04050a) var(--ov-a,94%), transparent)), var(--fundoImg,none);
+        background-size:cover; background-position:center; font-family:var(--t-fd,Georgia,serif); color:var(--t-txt,#eee); animation:entra .45s ease; }
+  #ov::before { content:""; position:absolute; inset:14px; pointer-events:none; border:var(--t-borda,0); }
+  #ov::after { content:""; position:absolute; inset:0; pointer-events:none; background:var(--t-scan,none), radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,var(--t-vig,0)) 100%); }
+  @keyframes tremer { 0%,100% { transform:translate(0,0); } 25% { transform:translate(1.5px,-1px); } 50% { transform:translate(-1.5px,1px); } 75% { transform:translate(1px,1.5px); } }
+  .tremor #nome { animation:tremer .2s steps(2) infinite; }
   @keyframes entra { from { opacity:0; transform:scale(1.03); } to { opacity:1; transform:none; } }
-  .rb { width:36px; height:36px; border:0; border-radius:50%; background:#ffffff1c; color:#fff; font-size:16px; cursor:pointer; }
+  .rb { width:36px; height:36px; border:0; border-radius:50%; background:color-mix(in srgb, var(--t-txt,#fff) 14%, transparent); color:var(--t-txt,#fff); font-size:16px; cursor:pointer; }
   .rb:hover { background:#ffffff40; } .rb.on { background:#fff; color:#111; }
   #x { position:absolute; top:14px; right:16px; }
   #tools { position:absolute; top:14px; left:16px; display:flex; align-items:center; gap:6px; }
   #tools span { font:12px system-ui,sans-serif; color:#cfd2e2; min-width:34px; text-align:center; }
-  #nome { margin:0; text-align:center; font-size:clamp(22px,3.4vw,38px); letter-spacing:.07em; text-transform:uppercase; color:#fff; text-shadow:0 2px 18px #000, 0 0 30px var(--cor,transparent); }
-  #meta { text-align:center; font:clamp(11px,1.3vw,14px) system-ui,sans-serif; letter-spacing:.14em; text-transform:uppercase; color:#80849a; }
-  #desc { max-width:700px; width:100%; max-height:28vh; overflow:auto; text-align:justify; hyphens:auto; font-size:clamp(14px,1.7vw,18px); line-height:1.55; color:#d6d8e4; padding:0 6px; }
-  #desc b { color:#fff; }
+  #nome { margin:0; text-align:center; font-size:clamp(22px,3.4vw,38px); letter-spacing:.07em; text-transform:uppercase; color:var(--t-txt,#fff); font-family:var(--t-ft,inherit); text-shadow:var(--t-sombra,0 2px 18px #000), 0 0 30px var(--cor,transparent); }
+  #meta { text-align:center; font:clamp(11px,1.3vw,14px) system-ui,sans-serif; letter-spacing:.14em; text-transform:uppercase; color:color-mix(in srgb, var(--t-txt,#80849a) 60%, transparent); }
+  #desc { max-width:700px; width:100%; max-height:28vh; overflow:auto; text-align:justify; hyphens:auto; font-size:clamp(14px,1.7vw,18px); line-height:1.55; font-family:var(--t-fd,inherit); color:color-mix(in srgb, var(--t-txt,#d6d8e4) 88%, transparent); padding:0 6px; }
+  #desc b { color:var(--t-txt,#fff); }
   #barra { position:absolute; left:0; right:0; bottom:0; height:5px; background:#ffffff1f; }
-  #prog { display:block; height:100%; width:100%; background:var(--cor,#fff); transform-origin:left; }
+  #prog { display:block; height:100%; width:100%; background:var(--cor,var(--t-acc,#fff)); transform-origin:left; }
 
   /* modo lupa */
   .lupa { --hmax:62vh; }
@@ -51,13 +56,14 @@
 
 <script type="module">
 import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3";
-import { MODAL_ANUNCIO, esc, sanitize, holoHTML, initHolo, metaTexto, detalhesHTML } from "./shared.js";
+import { MODAL_ANUNCIO, aplicarTema, esc, sanitize, holoHTML, initHolo, metaTexto, detalhesHTML } from "./shared.js";
 
 const $ = s => document.querySelector(s);
 let DURACAO = 8000; // tempo na tela (ms); o mestre ajusta na aba ⚙
 let dados = {};
 try { dados = JSON.parse(new URLSearchParams(location.search).get("d") || "{}"); } catch (e) {}
 
+aplicarTema(dados.tema);
 DURACAO = (Number(dados.dur) || 8) * 1000;
 if (dados.cor) document.documentElement.style.setProperty("--cor", dados.cor);
 $("#nome").textContent = dados.nome || "";

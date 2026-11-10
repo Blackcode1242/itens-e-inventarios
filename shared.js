@@ -4,6 +4,7 @@ export const CH_ANUNCIO = "com.inventario.mestre/anuncio";
 export const MODAL_ANUNCIO = "com.inventario.mestre/anuncio-modal";
 export const K_PERS = "com.inventario.mestre/pers";
 export const CH_USO = "com.inventario.mestre/uso";
+export const K_TEMA = "com.inventario.mestre/tema";
 
 /* Modelos prontos: o mestre pode aplicar e depois editar tudo na aba ⚙ */
 export const PRESETS = {
@@ -14,7 +15,46 @@ export const PRESETS = {
   "Terror / Investigação": { tipos: ["Arma", "Acessório", "Explosivo", "Item Operacional", "Item Amaldiçoado", "Documento", "Variado"],
     raridades: [["Cat. 0", "#9aa0b8"], ["Cat. I", "#4caf70"], ["Cat. II", "#4a8fe0"], ["Cat. III", "#a259e6"], ["Cat. IV", "#e05050"]] }
 };
-export const CFG_PADRAO = { ...PRESETS["Fantasia"], duracao: 8 };
+
+/* ---------- temas do anúncio ---------- */
+export const FONTES = {
+  "Clássica": "Georgia,'Times New Roman',serif",
+  "Manuscrita": "'Segoe Script','Brush Script MT','Comic Sans MS',cursive",
+  "Gótica": "'Old English Text MT','Palatino Linotype',Georgia,serif",
+  "Tecnológica": "'Lucida Console',Consolas,monospace",
+  "Máquina de escrever": "'Courier New',Courier,monospace",
+  "Moderna": "system-ui,sans-serif"
+};
+export const TEMAS = {
+  "Padrão": { bg: "#161824", bg2: "#04050a", txt: "#ffffff", acc: "#ffffff", fonteT: "Clássica", fonteD: "Clássica", moldura: "nenhuma", vinheta: 0, brilho: false, tremor: false, scan: false, fundoImg: "" },
+  "Pergaminho": { bg: "#d9c49a", bg2: "#a8895a", txt: "#3b2614", acc: "#7a4a1d", fonteT: "Gótica", fonteD: "Clássica", moldura: "dupla", vinheta: 45, brilho: false, tremor: false, scan: false, fundoImg: "" },
+  "Neon": { bg: "#0a0620", bg2: "#000000", txt: "#e6fbff", acc: "#00e5ff", fonteT: "Tecnológica", fonteD: "Tecnológica", moldura: "linha", vinheta: 20, brilho: true, tremor: false, scan: true, fundoImg: "" },
+  "Terror": { bg: "#2a0a0a", bg2: "#000000", txt: "#e8dcd0", acc: "#b01818", fonteT: "Máquina de escrever", fonteD: "Máquina de escrever", moldura: "linha", vinheta: 80, brilho: false, tremor: true, scan: false, fundoImg: "" }
+};
+export function limparTema(t) {
+  const b = TEMAS["Padrão"], o = {}; t = t || {};
+  for (const k of ["bg", "bg2", "txt", "acc"]) o[k] = /^#[0-9a-f]{6}$/i.test(t[k]) ? t[k] : b[k];
+  for (const k of ["fonteT", "fonteD"]) o[k] = FONTES[t[k]] ? t[k] : b[k];
+  o.moldura = ["nenhuma", "linha", "dupla"].includes(t.moldura) ? t.moldura : "nenhuma";
+  o.vinheta = Math.min(100, Math.max(0, +t.vinheta || 0));
+  for (const k of ["brilho", "tremor", "scan"]) o[k] = !!t[k];
+  o.fundoImg = /^https:\/\//.test(t.fundoImg) ? t.fundoImg : "";
+  return o;
+}
+export function aplicarTema(t) {
+  t = limparTema(t);
+  const set = (k, v) => document.documentElement.style.setProperty(k, v);
+  const img = t.fundoImg ? `url("${t.fundoImg.replace(/["()\\]/g, "")}")` : "none";
+  set("--t-bg", t.bg); set("--t-bg2", t.bg2); set("--t-txt", t.txt); set("--t-acc", t.acc);
+  set("--t-ft", FONTES[t.fonteT]); set("--t-fd", FONTES[t.fonteD]);
+  set("--fundoImg", img); set("--ov-a", t.fundoImg ? "55%" : "94%");
+  set("--t-borda", t.moldura === "linha" ? `2px solid ${t.acc}` : t.moldura === "dupla" ? `5px double ${t.acc}` : "0");
+  set("--t-vig", String(t.vinheta / 100));
+  set("--t-scan", t.scan ? "repeating-linear-gradient(0deg, rgba(255,255,255,.05) 0 1px, transparent 1px 3px)" : "none");
+  set("--t-sombra", t.brilho ? `0 0 10px ${t.acc}, 0 0 30px ${t.acc}` : "0 2px 18px rgba(0,0,0,.6)");
+  document.documentElement.classList.toggle("tremor", t.tremor);
+}
+export const CFG_PADRAO = { ...PRESETS["Fantasia"], duracao: 8, tema: TEMAS["Padrão"], temas: {} };
 export const corDe = (cfg, nome) => (cfg.raridades.find(r => r[0] === nome) || [0, "#9aa0b8"])[1];
 export const parseProps = t => String(t || "").split("\n").map(l => l.trim()).filter(Boolean)
   .map(l => { const i = l.indexOf(":"); return i < 0 ? [l, ""] : [l.slice(0, i).trim(), l.slice(i + 1).trim()]; });

@@ -148,6 +148,25 @@
           <label>Duração do anúncio (segundos)</label><input id="c-dur" type="number" min="3" max="60">
           <div class="btns fim"><button id="c-save" type="button" class="ok">Salvar configuração</button></div>
         </div>
+        <div class="pers" style="margin-top:10px">
+          <h3><span>Tema do anúncio</span></h3>
+          <label>Modelo ou tema salvo</label><select id="t-sel"></select>
+          <div class="linha">
+            <div><label>Fundo</label><input id="t-bg" type="color"></div><div><label>Fundo 2</label><input id="t-bg2" type="color"></div>
+            <div><label>Texto</label><input id="t-txt" type="color"></div><div><label>Destaque</label><input id="t-acc" type="color"></div>
+          </div>
+          <div class="linha"><div><label>Fonte do título</label><select id="t-ft"></select></div><div><label>Fonte do texto</label><select id="t-fd"></select></div></div>
+          <div class="linha">
+            <div><label>Moldura</label><select id="t-mol"><option value="nenhuma">nenhuma</option><option value="linha">linha</option><option value="dupla">dupla</option></select></div>
+            <div><label>Vinheta (0–100)</label><input id="t-vig" type="number" min="0" max="100"></div>
+          </div>
+          <label>Imagem de fundo (link https, opcional)</label><input id="t-img" placeholder="https://...">
+          <label style="display:flex;gap:14px;text-transform:none">
+            <span><input id="t-bri" type="checkbox" style="width:auto"> brilho</span><span><input id="t-tre" type="checkbox" style="width:auto"> tremor</span><span><input id="t-scan" type="checkbox" style="width:auto"> varredura</span>
+          </label>
+          <div class="btns fim"><button id="t-test" type="button">Testar</button><button id="t-usar" type="button" class="ok">Usar este tema</button></div>
+          <div class="linha" style="margin-top:8px"><input id="t-nome" placeholder="Nome para salvar"><button id="t-salvar" type="button" class="p" style="flex:0 0 auto">Salvar</button><button id="t-del" type="button" class="bad" style="flex:0 0 auto">Apagar</button></div>
+        </div>
       </div>
     </div>
 
@@ -160,7 +179,7 @@
 
 <script type="module">
 import OBR, { buildImageUpload, buildImage } from "https://esm.sh/@owlbear-rodeo/sdk@3";
-import { BASE, K_LISTA, CH_ANUNCIO, MODAL_ANUNCIO, K_PERS, CH_USO, PRESETS, CFG_PADRAO, corDe, parseProps, metaTexto, detalhesHTML, novoId, sanitize, copiarRico, copiarTexto } from "./shared.js";
+import { BASE, K_LISTA, CH_ANUNCIO, MODAL_ANUNCIO, K_PERS, CH_USO, K_TEMA, FONTES, TEMAS, limparTema, PRESETS, CFG_PADRAO, corDe, parseProps, metaTexto, detalhesHTML, novoId, sanitize, copiarRico, copiarTexto } from "./shared.js";
 
 const LS = "inventario:banco:v1", LSC = "inventario:cfg:v1";
 const $ = s => document.querySelector(s);
@@ -206,7 +225,8 @@ const migrar = i => { if (i.categoria !== undefined && !i.raridade) i.raridade =
 let banco = []; try { banco = JSON.parse(localStorage.getItem(LS) || "[]").map(migrar); } catch (e) {}
 let cfg = { ...CFG_PADRAO }; try { cfg = { ...CFG_PADRAO, ...JSON.parse(localStorage.getItem(LSC) || "{}") }; } catch (e) {}
 const salvarBanco = () => { try { localStorage.setItem(LS, JSON.stringify(banco)); } catch (e) { toast("Não consegui salvar neste navegador."); } };
-let lista = [], pers = [], party = [], meuId = "";
+let lista = [], pers = [], party = [], meuId = "", amb = {};
+const getAmb = () => isGM ? { tema: cfg.tema, dur: cfg.duracao } : amb;
 let isGM = false, editandoId = null, imgAtual = "";
 
 /* ---------- lista compartilhada (dados da sala, máx. 16 kB) ---------- */
@@ -297,13 +317,13 @@ async function retirarDaLista(id) { await salvarLista(lista.filter(l => l.id !==
 
 /* ---------- anúncio ---------- */
 async function anunciar(it) {
-  const dados = { ...dadosItem(it), dur: cfg.duracao };
+  const dados = { ...dadosItem(it), ...getAmb() };
   if (new Blob([JSON.stringify(dados)]).size > 15000) { toast("Descrição grande demais para anunciar."); return; }
   try { await OBR.broadcast.sendMessage(CH_ANUNCIO, dados, { destination: "ALL" }); toast("Item anunciado!"); }
   catch (e) { toast("Não consegui anunciar."); console.error(e); }
 }
 function verLocal(it) {
-  OBR.modal.open({ id: MODAL_ANUNCIO, url: urlAnuncio({ ...dadosItem(it), dur: cfg.duracao }), fullScreen: true, hidePaper: true });
+  OBR.modal.open({ id: MODAL_ANUNCIO, url: urlAnuncio({ ...dadosItem(it), ...getAmb() }), fullScreen: true, hidePaper: true });
 }
 
 /* ---------- render: banco do mestre ---------- */
@@ -432,7 +452,7 @@ async function importar(file) {
   if (!file) return;
   try {
     let dados = JSON.parse(await file.text());
-    if (dados && !Array.isArray(dados) && dados.cfg) { cfg = { ...CFG_PADRAO, ...dados.cfg }; try { localStorage.setItem(LSC, JSON.stringify(cfg)); } catch (e) {} carregarCfgNaTela(); }
+    if (dados && !Array.isArray(dados) && dados.cfg) { cfg = { ...CFG_PADRAO, ...dados.cfg }; try { localStorage.setItem(LSC, JSON.stringify(cfg)); } catch (e) {} carregarCfgNaTela(); temaNaTela(cfg.tema); atualizarSelTemas(); }
     if (dados && !Array.isArray(dados)) dados = dados.itens;
     if (!Array.isArray(dados)) throw 0;
     const ids = new Set(banco.map(b => b.id));
@@ -467,12 +487,52 @@ function iniciarCfg() {
     const tipos = $("#c-tipos").value.split("\n").map(t => t.trim()).filter(Boolean);
     const raridades = $("#c-rar").value.split("\n").map(l => l.trim()).filter(Boolean).map(l => { const m = l.match(/^(.*?)\s*(#[0-9a-fA-F]{6})?$/); return [m[1] || l, m[2] || "#9aa0b8"]; });
     if (!tipos.length || !raridades.length) { toast("Preencha ao menos um tipo e uma raridade."); return; }
-    cfg = { tipos, raridades, duracao: Math.min(60, Math.max(3, parseInt($("#c-dur").value, 10) || 8)) };
+    cfg = { ...cfg, tipos, raridades, duracao: Math.min(60, Math.max(3, parseInt($("#c-dur").value, 10) || 8)) };
     try { localStorage.setItem(LSC, JSON.stringify(cfg)); } catch (e) {}
     if (lista.length) salvarLista(lista.map(l => { const b = banco.find(x => x.id === l.id); return b && !l.oculto ? dadosItem(b) : l; }));
+    salvarMeta(K_TEMA, { tema: cfg.tema, dur: cfg.duracao });
     renderTudo(); toast("Configuração salva.");
   };
   carregarCfgNaTela();
+}
+
+/* ---------- temas do anúncio ---------- */
+function temaDaTela() {
+  return limparTema({ bg: $("#t-bg").value, bg2: $("#t-bg2").value, txt: $("#t-txt").value, acc: $("#t-acc").value,
+    fonteT: $("#t-ft").value, fonteD: $("#t-fd").value, moldura: $("#t-mol").value, vinheta: $("#t-vig").value, fundoImg: $("#t-img").value.trim(),
+    brilho: $("#t-bri").checked, tremor: $("#t-tre").checked, scan: $("#t-scan").checked });
+}
+function temaNaTela(t) {
+  t = limparTema(t);
+  $("#t-bg").value = t.bg; $("#t-bg2").value = t.bg2; $("#t-txt").value = t.txt; $("#t-acc").value = t.acc;
+  $("#t-ft").value = t.fonteT; $("#t-fd").value = t.fonteD; $("#t-mol").value = t.moldura; $("#t-vig").value = t.vinheta; $("#t-img").value = t.fundoImg;
+  $("#t-bri").checked = t.brilho; $("#t-tre").checked = t.tremor; $("#t-scan").checked = t.scan;
+}
+function atualizarSelTemas(sel) {
+  const s = $("#t-sel"); s.innerHTML = "";
+  for (const n of Object.keys(TEMAS)) s.append(h("option", { value: n }, n));
+  for (const n of Object.keys(cfg.temas || {})) s.append(h("option", { value: n }, "★ " + n));
+  if (sel) s.value = sel;
+}
+const salvarCfgLocal = () => { try { localStorage.setItem(LSC, JSON.stringify(cfg)); } catch (e) {} };
+function iniciarTemas() {
+  for (const f of Object.keys(FONTES)) for (const s of ["#t-ft", "#t-fd"]) $(s).append(h("option", { value: f }, f));
+  atualizarSelTemas(); temaNaTela(cfg.tema);
+  $("#t-sel").onchange = e => { const v = e.target.value; temaNaTela(TEMAS[v] || cfg.temas[v]); $("#t-nome").value = cfg.temas[v] ? v : ""; };
+  $("#t-test").onclick = () => OBR.modal.open({ id: MODAL_ANUNCIO, fullScreen: true, hidePaper: true, url: urlAnuncio({
+    nome: "Item de exemplo", descricao: "Assim o anúncio vai aparecer para os jogadores.", icone: "🗝️", tipo: "Teste", raridade: cfg.raridades[0][0],
+    cor: cfg.raridades[0][1], props: [["Propriedade", "valor"]], tags: ["exemplo"], tema: temaDaTela(), dur: cfg.duracao }) });
+  $("#t-usar").onclick = async () => { cfg.tema = temaDaTela(); salvarCfgLocal(); await salvarMeta(K_TEMA, { tema: cfg.tema, dur: cfg.duracao }); toast("Tema ativado para os anúncios."); };
+  $("#t-salvar").onclick = () => {
+    const n = $("#t-nome").value.trim();
+    if (!n || TEMAS[n]) { toast("Escolha um nome diferente dos modelos."); return; }
+    cfg.temas = { ...cfg.temas, [n]: temaDaTela() }; salvarCfgLocal(); atualizarSelTemas(n); toast("Tema salvo.");
+  };
+  $("#t-del").onclick = () => {
+    const n = $("#t-sel").value;
+    if (!(cfg.temas || {})[n]) { toast("Só temas salvos por você podem ser apagados."); return; }
+    const { [n]: _, ...resto } = cfg.temas; cfg.temas = resto; salvarCfgLocal(); atualizarSelTemas(); toast("Tema apagado.");
+  };
 }
 
 /* ---------- início ---------- */
@@ -490,7 +550,7 @@ function aba(qual) {
   $("#aba-pers").classList.toggle("sel", qual === "pers"); $("#v-pers").hidden = qual !== "pers";
 }
 
-iniciarCfg();
+iniciarCfg(); iniciarTemas();
 $("#aba-banco").onclick = () => aba("banco");
 $("#aba-lista").onclick = () => aba("lista");
 $("#aba-cfg").onclick = () => aba("cfg");
@@ -520,11 +580,11 @@ $("#som-btn").onclick = async () => {
 
 OBR.onReady(async () => {
   const meta = await OBR.room.getMetadata();
-  lista = meta[K_LISTA] || []; pers = meta[K_PERS] || [];
+  lista = meta[K_LISTA] || []; pers = meta[K_PERS] || []; amb = meta[K_TEMA] || {};
   meuId = await OBR.player.getId(); party = await OBR.party.getPlayers();
   aplicarPapel((await OBR.player.getRole()) === "GM");
   OBR.player.onChange(p => { if ((p.role === "GM") !== isGM) aplicarPapel(p.role === "GM"); });
-  OBR.room.onMetadataChange(m => { lista = m[K_LISTA] || []; pers = m[K_PERS] || []; renderTudo(); });
+  OBR.room.onMetadataChange(m => { lista = m[K_LISTA] || []; pers = m[K_PERS] || []; amb = m[K_TEMA] || {}; renderTudo(); });
   OBR.party.onChange(p => { party = p; renderTudo(); });
 });
 </script>
